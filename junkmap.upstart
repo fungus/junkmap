@@ -1,0 +1,15 @@
+# JunkMap Service
+
+description     "JunkMap Server
+author          "Lonnie Olson <github@verp.org>"
+
+start on runlevel [2345]
+stop on runlevel [016]
+
+setuid postfix
+setgid postfix
+
+respawn
+exec /usr/local/bin/junkmap -config /etc/postfix/junkmap.json >/var/log/junkmap.log 2>&1
+
+
