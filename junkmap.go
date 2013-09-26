@@ -37,6 +37,7 @@ func read_conf(confFile string) {
     f, err := os.Open(confFile)
     if err != nil {
         log.Printf("Unable to open configuration file %s: using defaults",confFile)
+        return
     }
     defer f.Close()
     decoder := json.NewDecoder(f)
