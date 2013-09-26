@@ -36,7 +36,7 @@ var CFG = Settings{
 func read_conf(confFile string) {
     f, err := os.Open(confFile)
     if err != nil {
-        log.Fatalf("Unable to open configuration file %s: %s",confFile,err)
+        log.Printf("Unable to open configuration file %s: using defaults",confFile)
     }
     defer f.Close()
     decoder := json.NewDecoder(f)
