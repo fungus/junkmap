@@ -7,9 +7,7 @@ import (
     "log"
     "flag"
     "time"
-    "regexp"
     "strings"
-    "encoding/json"
     "database/sql"
     _ "github.com/mattn/go-sqlite3"
     )
@@ -20,49 +18,42 @@ import (
 type Settings struct {
     Service string    // Address to listen to
     Database string   // Database file
+    LogFile string    // Log file
     ValidTime float64 // Valid lifetime to a record (in hours)
-    AddrGood string   // Return for a good address (200 success, 400 temp fail, 500 perm fail)
-    AddrBad string    // Return for expired address
+    DestAddr string   // Return for a valid address
+    Domain string     // Domain to forward
+}
+
+func (self *Settings) parse() {
+    flag.StringVar(&self.Service,"service","127.0.0.1:2000","Specify <address>:<port> to listen on")
+    flag.StringVar(&self.Database,"database","junkmap.db","Specify path to database file")
+    flag.StringVar(&self.LogFile,"log","stdout","Specify path to log file or stdout")
+    flag.Float64Var(&self.ValidTime,"expires",336,"Specify expiration of address in hours")
+    flag.StringVar(&self.DestAddr,"address","root","Specify forwarding email address")
+    flag.StringVar(&self.Domain,"domain","example.org","Specify domain to forward")
+    flag.Parse()
+
+    if self.LogFile != "stdout" {
+        f, _ := os.OpenFile(self.LogFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
+        log.SetOutput(f)
+    }
 }
 // Defaults
 var CFG = Settings{
     "127.0.0.1:2000",
     "junkmap.db",
+    "stdout",
     336,
-    "200 root",
-    "500 Unknown User",
-}
-
-func read_conf(confFile string) {
-    f, err := os.Open(confFile)
-    if err != nil {
-        log.Printf("Unable to open configuration file %s: using defaults",confFile)
-        return
-    }
-    defer f.Close()
-    decoder := json.NewDecoder(f)
-    err = decoder.Decode(&CFG)
-    if err != nil {
-        log.Fatalf("Unable to parse configuration file %s: %s",confFile,err)
-    }
-    validAddr := regexp.MustCompile(`^[245]00 \w`)
-    if !validAddr.MatchString(CFG.AddrGood) {
-        log.Fatal("AddrGood config value is not valid: ",CFG.AddrGood)
-    }
-    if !validAddr.MatchString(CFG.AddrBad) {
-        log.Fatal("AddrBad config value is not valid: ",CFG.AddrBad)
-    }
+    "root",
+    "example.org",
 }
 
 /////////////////////////////////
 // Main
 /////////////////////////////////
 func main() {
-    var cfg string
-    flag.StringVar(&cfg,"config","junkmap.json","Specify path to config file")
-    flag.Parse()
-    // Read config file
-    read_conf(cfg)
+    // Read CLI Options
+    CFG.parse()
     // Verify DB exists w/ correct schema
     db_check()
     // Start TCP Listener
@@ -106,6 +97,9 @@ func handleClient(conn net.Conn) {
 
 // Database lookup
 func lookup(key string) string {
+    if !strings.HasSuffix(key,CFG.Domain) {
+        return "500 Invalid domain"
+    }
     db, err := sql.Open("sqlite3", CFG.Database)
     if err != nil {
         return db_error(err)
@@ -129,9 +123,9 @@ func lookup(key string) string {
     now := time.Now()
     // Fail for non-permanent and expired records
     if p == 0 && now.Sub(t).Hours() > CFG.ValidTime {
-        return CFG.AddrBad
+        return "500 Unknown User"
     }
-    return CFG.AddrGood
+    return fmt.Sprintf("200 %s",CFG.DestAddr)
 }
 
 // Database error, return temporary failure

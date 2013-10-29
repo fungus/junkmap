@@ -1,7 +1,0 @@
-{
-    "Service":"127.0.0.1:2000",
-    "Database":"/etc/postfix/junkmap.db",
-    "ValidTime":336
-    "AddrGood":"200 example@example.org",
-    "AddrBad":"500 Unknown User"
-}
